@@ -10,7 +10,7 @@ In honor of the holidays, Tara and family are launching a competition to see who
 
 You can submit your animation in one of two ways:
 
-1. **Google Form**: Submit your code via the Google Form (link to be provided)
+1. **Google Form**: Submit your code via the Google Form [link](https://docs.google.com/forms/d/e/1FAIpQLSeRCEycZFLfaDzHeE7ZrpHK9nPu6TYOfG1JkeSmZvQTYxV98Q/viewform?usp=sharing&ouid=104897570258769792952)
 2. **Pull Request**: Fork this repository, create your animation in `animation.py`, and open a Pull Request
 
 ### Submission Guidelines
