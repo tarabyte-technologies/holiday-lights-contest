@@ -88,10 +88,20 @@ class MyAnimation(BaseAnimation):
                 b = int(np.clip(10 * log_pulse, 0, 255))
             elif height < 0.22:
                 # Ember/coal region - shifts between deep red and orange
-                base_g = 20 + 60 * anim_normalized  # 20-80 green based on animation
-                r = int(np.clip(255 * brightness, 0, 255))
-                g = int(np.clip(base_g * brightness, 0, 255))
-                b = int(np.clip(0, 0, 255))
+                # Occasional blue ember pulse
+                blue_pulse = np.sin(self.time * 1.5 + self.phase_offsets[i] * 3)
+                if blue_pulse > 0.85:
+                    # Blue ember moment
+                    pulse_strength = (blue_pulse - 0.85) / 0.15  # 0 to 1
+                    r = int(np.clip(80 + 50 * (1 - pulse_strength), 0, 255))
+                    g = int(np.clip(100 + 80 * pulse_strength, 0, 255))
+                    b = int(np.clip(200 + 55 * pulse_strength, 0, 255))
+                else:
+                    # Normal red/orange ember
+                    base_g = 20 + 60 * anim_normalized  # 20-80 green based on animation
+                    r = int(np.clip(255 * brightness, 0, 255))
+                    g = int(np.clip(base_g * brightness, 0, 255))
+                    b = int(np.clip(0, 0, 255))
             elif height < 0.50:
                 # Main flame region - shifts between red-orange and yellow-orange
                 flame_pos = (height - 0.22) / 0.28
@@ -107,11 +117,11 @@ class MyAnimation(BaseAnimation):
                 g = int(np.clip(min(255, base_g) * brightness, 0, 255))
                 b = int(np.clip(0, 0, 255))
 
-            # Add random sparks occasionally (very rare, top third only)
-            if height > 0.67 and np.random.random() < 0.0001:
-                spark_intensity = np.random.uniform(0.8, 1.0)
-                r = int(255 * spark_intensity)
-                g = int(np.random.uniform(220, 255) * spark_intensity)
-                b = int(np.random.uniform(120, 200) * spark_intensity)
+            # Add random blue sparks occasionally (very rare, top third only)
+            if height > 0.67 and np.random.random() < 0.0002:
+                spark_intensity = np.random.uniform(0.7, 1.0)
+                r = int(np.random.uniform(80, 150) * spark_intensity)
+                g = int(np.random.uniform(150, 220) * spark_intensity)
+                b = int(255 * spark_intensity)
 
             self.frameBuf[i] = [r, g, b]
