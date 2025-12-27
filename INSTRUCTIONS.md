@@ -229,49 +229,75 @@ class SolidColor(BaseAnimation):
 - `bandwidth: float = 0.2`: Thickness of lit band
 - `decay: float = 0.85`: Decay for non-lit pixels
 
-### 4. `animation.py` (Current) - Brick Breaker Game
+### 4. `animation.py` (Current) - Brick Breaker Game v2.1 (Grid-Based)
 
-**Pattern**: Classic Brick Breaker game on the tree using YZ plane projection with rotating gameplay
+**Pattern**: Classic Brick Breaker game using TRUE 3D GRID system with cylindrical coordinate mapping
+
+**Key Innovation - Grid-Based Face Mapping:**
+This version represents a major improvement over previous implementations. Instead of using sequential LED indices (which don't match the tree's 3D structure), we now use a proper **3D grid system**:
+
+- **Angular Sections**: Divide the tree into 8 angular sections (like pizza slices when viewed from above, 45° each)
+- **Height Bands**: Divide each section into 8 height bands (horizontal layers)
+- **Grid Cells**: Each brick = one cell in this grid (section × band)
+- **Spatial Mapping**: LEDs are assigned to bricks based on their actual 3D position (angle, height), not their string order
+
+**Why This Matters:**
+- Previous versions used sequential LED indices, which meant bricks wrapped unpredictably around the tree
+- This version uses cylindrical coordinates (angle, height), so bricks are properly organized spatially
+- Collision detection works in 3D space - the ball bounces off bricks that are actually next to each other
+- The "visible face" system shows only the front portion of the tree (±72°), making it feel like a traditional 2D game while showcasing the 3D structure
 
 **Key Techniques:**
-- **Sequential Brick Structure**: Bricks are groups of consecutive light indices (5 lights per brick)
-- **YZ Plane Projection**: Uses Y (horizontal) and Z (vertical) coordinates for 2D game logic
-- **Rotating Gameplay**: Game rotates around tree, cycling through 6 different faces between games
-- **3D Spatial Collision**: Each brick has Y and Z bounds for precise collision detection
-- **Game state management**: Ball position/velocity, paddle position, individual brick states
-- **Collision detection**: Ball vs walls, paddle, and individual bricks
-- **Auto-paddle AI**: Paddle follows ball with configurable lag
-- **Win/Loss Animations**: Rainbow wave effect for wins, white wash for losses
+- **Cylindrical Coordinates**: Convert 3D (x,y,z) to cylindrical (r,θ,z) for proper angular calculations
+- **Grid Assignment**: Each LED assigned to (section, band) based on its angle and height
+- **Face-Aware Rendering**: Only sections within ±72° of viewing angle are fully visible
+- **Angular Collision Detection**: Ball position tracked in (angle, z) space, collisions use angular distance
+- **Checkerboard Pattern**: Bricks alternate red/green based on (section + band) % 2
+- **Game state management**: Ball position/velocity in cylindrical space, paddle tracking, brick states
+- **Auto-paddle AI**: Paddle follows ball with lag, stays within visible face
+- **Win/Loss Animations**: Rainbow wave for wins, white wash for losses
 
-**Current Configuration:**
-- **47 bricks** (5 lights each) distributed in upper 60% of tree
-- **Colors**: Alternating red and green (brick index % 2)
-- **Paddle**: Width 0.25, AI-controlled, follows ball
-- **Ball**: Speed 0.015, radius 0.05, bounces off walls/paddle/bricks
+**Current Configuration (v2.1):**
+- **64 bricks** (8 sections × 8 bands) covering upper 2/3 of tree
+- **Brick coverage**: From 33% height to 100% height (upper 2/3 of tree)
+- **Colors**: Alternating RED and GREEN in checkerboard pattern
+- **Paddle**: Width 0.8 radians (~45°), AI-controlled, at bottom 15% of tree
+- **Ball**: Speed 0.02, bounces off walls/paddle/bricks in cylindrical space
+- **Visible face**: ±72° (144° total visible) that slowly rotates around tree
 - **Lives**: Ball can fall 3 times before game over
-- **Auto-reset**: Game automatically restarts after win/loss animations
+- **Auto-reset**: Game automatically restarts after win/loss animations, rotates to new face
 
 **Parameters:**
-- `fps: int = 30`: Frame rate
-- `ball_speed: float = 0.015`: Ball movement speed
-- `paddle_speed: float = 0.02`: Paddle AI movement speed
-- `paddle_width: float = 0.25`: Paddle width in game coordinates
-- `lights_per_brick: int = 5`: Number of lights per brick
-- `rotation_speed: float = 0.003`: Rotation speed around tree
+- `fps: int = 30`: Frame rate (30 FPS for smooth gameplay)
+- `ball_speed: float = 0.02`: Ball movement speed (radians per frame for angle, units for z)
+- `paddle_speed: float = 0.025`: Paddle AI tracking speed (radians per frame)
+- `paddle_width: float = 0.8`: Paddle width in radians (~45 degrees)
+- `num_sections: int = 8`: Number of angular sections (8 = 45° each)
+- `num_bands: int = 8`: Number of height bands (8 bands = more bricks)
+- `rotation_speed: float = 0.002`: Speed of slow rotation around tree
 
 **Game Elements:**
-- **Paddle** (white): Horizontal bar at bottom, AI-controlled to follow ball
-- **Ball** (yellow): Bounces around, breaks bricks on contact
-- **Bricks** (red/green): Sequential groups of 5 lights that alternate colors
-- **Win animation**: Rainbow wave effect with smooth color transitions (3 seconds)
+- **Paddle** (white): AI-controlled bar at bottom of tree, follows ball within visible face
+- **Ball** (yellow): Bounces around in cylindrical space, breaks bricks on contact
+- **Bricks** (red/green): Grid cells containing all LEDs within that (section, band) cell
+- **Back-face bricks**: Dimmed red/green so you can see the tree structure
+- **Win animation**: Rainbow wave effect rotating around tree (3 seconds)
 - **Loss animation**: White wash cascading from top to bottom (4 seconds)
 
 **Implementation Details:**
-- Bricks created from sequential light indices in upper tree portion
-- Each brick tracks: indices, active state, z_min, z_max, y_min, y_max
-- Collision uses spatial bounds rather than Z-slice detection
-- Rotation uses angle tracking and projects visible face to game plane
-- Win/loss states trigger special animations before auto-reset
+- **Grid Setup**: `_setup_grid()` assigns each LED to (section, band) based on angle and height
+- **Cylindrical Conversion**: All coordinates converted to (r, θ, z) for proper angular math
+- **Brick Storage**: Dictionary keyed by (section, band) containing LED indices and center coordinates
+- **Collision Detection**: Uses angular distance between ball and brick centers, handles wraparound
+- **Face Visibility**: Only sections within ±72° of viewing angle can be hit
+- **Coordinate System**: 
+  - Angle: [-π, π] radians (wraps around at ±180°)
+  - Height: [0, 1] normalized (0 = bottom, 1 = top)
+- **Bounce Logic**: Determines bounce direction based on which side of brick was hit
+- **State Machine**: Handles playing, won, and lost states with animations
+
+**Design Philosophy:**
+This version was created after analyzing the tree's actual 3D structure using a visualization tool (`tree_unwrap_viz.py`). The visualization revealed that LEDs are strung in a continuous spiral pattern, which means sequential indices don't correspond to spatial neighbors. The grid-based approach solves this by organizing bricks by their actual 3D position, creating a proper 2D game grid mapped onto the 3D conical surface.
 
 ## Running Animations
 
@@ -301,11 +327,12 @@ python run_animation.py --sample sweeping_planes
 # Run Brick Breaker game (current animation.py)
 python run_animation.py
 
-# Brick Breaker with custom parameters
-python run_animation.py --args '{"ball_speed": 0.02}'        # Faster ball
-python run_animation.py --args '{"lights_per_brick": 8}'     # Larger bricks (fewer total)
-python run_animation.py --args '{"paddle_width": 0.3}'       # Wider paddle
-python run_animation.py --args '{"rotation_speed": 0.005}'   # Faster rotation
+# Brick Breaker v2.1 with custom parameters
+python run_animation.py --args '{"ball_speed": 0.025}'       # Faster ball
+python run_animation.py --args '{"num_bands": 10}'          # More height bands (more bricks)
+python run_animation.py --args '{"num_sections": 12}'       # More angular sections (finer grid)
+python run_animation.py --args '{"paddle_width": 1.0}'      # Wider paddle (easier)
+python run_animation.py --args '{"rotation_speed": 0.005}'   # Faster rotation around tree
 ```
 
 ### Command-Line Arguments
@@ -479,6 +506,40 @@ def renderNextFrame(self):
    - Submit via Google Form or Pull Request
    - Include screen recording if possible
    - Note any special configuration requirements
+
+## Tree Visualization Tool
+
+A diagnostic visualization tool (`tree_unwrap_viz.py`) was created to understand the tree's 3D structure:
+
+**Purpose**: "Unwrap" the 3D tree into a 2D view to visualize LED distribution and verify spatial mapping.
+
+**Features**:
+- **2D Unwrapped View**: Shows angle (0-360°) vs height, effectively "unrolling" the tree like a cylinder
+- **Section Coloring**: Divides tree into angular sections (default 16) with distinct colors
+- **Nearest Neighbor Lines**: Shows connections between spatially adjacent LEDs
+- **Statistics**: Analyzes sequential continuity (how well LED indices match spatial proximity)
+
+**Usage**:
+```bash
+# Generate visualization with 16 sections (default)
+python tree_unwrap_viz.py
+
+# Use 8 sections (matches game grid)
+python tree_unwrap_viz.py --sections 8
+
+# Skip neighbor lines for faster rendering
+python tree_unwrap_viz.py --no-neighbors
+```
+
+**Output Files**:
+- `tree_unwrap.png`: 2D unwrapped scatter plot showing LED distribution
+- `tree_sections_3d.png`: 3D view with section coloring for verification
+
+**Key Insights from Visualization**:
+- Tree is wound in a continuous spiral pattern (~7-8 revolutions from bottom to top)
+- Sequential LED indices have strong spatial continuity (ratio ~0.08)
+- LEDs are evenly distributed across angular sections
+- This data informed the grid-based brick system in v2.1
 
 ## Web-Based Debugging (Optional)
 
