@@ -2,6 +2,8 @@
 <html>
 <head>
     <title>Brick Breaker - Tree Game</title>
+    <meta name="author" content="Pat / seeknay (from TikTok) with Cursor AI">
+    <meta name="description" content="Brick Breaker game for 500-LED Christmas tree - Created for fun!">
     <style>
         body {
             margin: 0;
@@ -13,6 +15,11 @@
         h1 {
             color: #ff6b6b;
             text-shadow: 0 0 10px #ff6b6b;
+        }
+        .attribution {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 10px;
         }
         #controls {
             margin-bottom: 20px;
@@ -49,6 +56,7 @@
 </head>
 <body>
     <h1>🎮 Brick Breaker on the Tree! 🎄</h1>
+    <div class="attribution">Created by Pat / seeknay with Cursor AI • For fun! • 47 bricks (5 lights each)</div>
     <div id="controls">
         <button onclick="startGame()">▶️ Start Game</button>
         <button onclick="pauseGame()">⏸️ Pause</button>
@@ -77,52 +85,75 @@
             // Paddle
             paddleY: 0,
             paddleZ: -0.37,
-            paddleWidth: 0.15,
+            paddleWidth: 0.25,  // Updated to match Python version
             paddleHeight: 0.04,
-            paddleSpeed: 0.025,
+            paddleSpeed: 0.02,  // Updated to match Python version
             
             // Ball
             ballY: 0,
             ballZ: -0.27,
-            ballVY: 0.008,
-            ballVZ: 0.012,
-            ballRadius: 0.035,
-            baseSpeed: 0.012,
+            ballVY: 0.0105,     // Updated to match Python speed (0.015 * 0.7)
+            ballVZ: 0.015,      // Updated to match Python speed
+            ballRadius: 0.05,   // Updated to match Python version
+            baseSpeed: 0.015,
             
-            // Bricks
-            brickRows: [],
-            brickHeight: 0.05,
+            // Bricks - now sequential groups instead of rows
+            bricks: [],
+            lightsPerBrick: 5,
             
             init() {
                 this.paddleY = 0;
-                this.paddleZ = this.zMin + 0.08;
+                this.paddleZ = this.zMin + 0.12;
                 this.ballY = 0;
-                this.ballZ = this.paddleZ + 0.12;
-                this.ballVY = this.baseSpeed * 0.6;
+                this.ballZ = this.paddleZ + 0.15;
+                this.ballVY = this.baseSpeed * 0.7;
                 this.ballVZ = this.baseSpeed;
                 
-                // Create brick rows
-                this.brickRows = [];
-                const numRows = 5;
-                for (let i = 0; i < numRows; i++) {
-                    this.brickRows.push({
-                        z: this.zMax - 0.08 - i * 0.08,
+                // Create sequential brick groups (matching Python implementation)
+                this.bricks = [];
+                
+                // Filter points in upper 60% of tree
+                const upperThreshold = this.zMin + (this.zMax - this.zMin) * 0.4;
+                const upperIndices = [];
+                for (let i = 0; i < points.length; i++) {
+                    if (points[i][2] >= upperThreshold) {
+                        upperIndices.push(i);
+                    }
+                }
+                
+                // Create bricks from sequential indices
+                const numBricks = Math.floor(upperIndices.length / this.lightsPerBrick);
+                for (let i = 0; i < numBricks; i++) {
+                    const startIdx = i * this.lightsPerBrick;
+                    const endIdx = startIdx + this.lightsPerBrick;
+                    const indices = upperIndices.slice(startIdx, endIdx);
+                    
+                    // Calculate brick bounds
+                    const zValues = indices.map(idx => points[idx][2]);
+                    const yValues = indices.map(idx => points[idx][1]);
+                    
+                    this.bricks.push({
+                        indices: indices,
                         active: true,
+                        zMin: Math.min(...zValues),
+                        zMax: Math.max(...zValues),
+                        yMin: Math.min(...yValues),
+                        yMax: Math.max(...yValues),
                         color: this.getBrickColor(i)
                     });
                 }
+                
                 score = 0;
+                console.log(`Created ${this.bricks.length} bricks (${this.lightsPerBrick} lights each)`);
             },
             
-            getBrickColor(row) {
+            getBrickColor(index) {
+                // Alternate red and green (matching Python implementation)
                 const colors = [
-                    [255, 50, 50],   // Red
-                    [255, 150, 0],   // Orange
-                    [255, 255, 0],   // Yellow
-                    [0, 255, 100],   // Green
-                    [0, 200, 255],   // Cyan
+                    [255, 0, 0],    // Red
+                    [0, 255, 0],    // Green
                 ];
-                return colors[row % colors.length];
+                return colors[index % colors.length];
             },
             
             update() {
@@ -156,15 +187,21 @@
                     this.ballVZ = Math.abs(this.ballVZ);
                     // Add angle based on hit position
                     const hitPos = (this.ballY - this.paddleY) / (this.paddleWidth / 2);
-                    this.ballVY = hitPos * this.baseSpeed * 1.2;
+                    this.ballVY = hitPos * this.baseSpeed;
                 }
                 
-                // Brick collisions
-                for (let brick of this.brickRows) {
+                // Brick collisions (using spatial bounds)
+                for (let brick of this.bricks) {
                     if (!brick.active) continue;
                     
-                    if (this.ballZ >= brick.z - this.brickHeight/2 &&
-                        this.ballZ <= brick.z + this.brickHeight/2) {
+                    // Check if ball is within brick's Y and Z bounds (matching Python implementation)
+                    const zTolerance = 0.03;
+                    const yTolerance = 0.05;
+                    
+                    if (this.ballZ >= brick.zMin - zTolerance &&
+                        this.ballZ <= brick.zMax + zTolerance &&
+                        this.ballY >= brick.yMin - yTolerance &&
+                        this.ballY <= brick.yMax + yTolerance) {
                         brick.active = false;
                         this.ballVZ = -this.ballVZ;
                         score += 100;
@@ -178,7 +215,7 @@
                 }
                 
                 // Win check
-                if (this.brickRows.every(b => !b.active)) {
+                if (this.bricks.every(b => !b.active)) {
                     this.init(); // Reset with new bricks
                     score += 500; // Bonus for clearing
                 }
@@ -226,11 +263,12 @@
                 // Background
                 let color = [5, 5, 20];
                 
-                // Bricks
-                for (let brick of game.brickRows) {
+                // Bricks - check if this light index is in any active brick
+                for (let brick of game.bricks) {
                     if (!brick.active) continue;
-                    if (Math.abs(z - brick.z) < game.brickHeight / 2) {
+                    if (brick.indices.includes(i)) {
                         color = brick.color;
+                        break;
                     }
                 }
                 
