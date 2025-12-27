@@ -222,27 +222,47 @@ class SolidColor(BaseAnimation):
 
 ### 4. `animation.py` (Current) - Brick Breaker Game
 
-**Pattern**: Classic Brick Breaker game on the tree using YZ plane projection
+**Pattern**: Classic Brick Breaker game on the tree using YZ plane projection with rotating gameplay
 
 **Key Techniques:**
+- **Sequential Brick Structure**: Bricks are groups of consecutive light indices (5 lights per brick)
 - **YZ Plane Projection**: Uses Y (horizontal) and Z (vertical) coordinates for 2D game logic
-- **Game state management**: Ball position/velocity, paddle position, brick active states
-- **Collision detection**: Ball vs walls, paddle, and brick rows
+- **Rotating Gameplay**: Game rotates around tree, cycling through 6 different faces between games
+- **3D Spatial Collision**: Each brick has Y and Z bounds for precise collision detection
+- **Game state management**: Ball position/velocity, paddle position, individual brick states
+- **Collision detection**: Ball vs walls, paddle, and individual bricks
 - **Auto-paddle AI**: Paddle follows ball with configurable lag
-- **Win/reset logic**: Detects all bricks cleared, resets game
+- **Win/Loss Animations**: Rainbow wave effect for wins, white wash for losses
+
+**Current Configuration:**
+- **47 bricks** (5 lights each) distributed in upper 60% of tree
+- **Colors**: Alternating red and green (brick index % 2)
+- **Paddle**: Width 0.25, AI-controlled, follows ball
+- **Ball**: Speed 0.015, radius 0.05, bounces off walls/paddle/bricks
+- **Lives**: Ball can fall 3 times before game over
+- **Auto-reset**: Game automatically restarts after win/loss animations
 
 **Parameters:**
 - `fps: int = 30`: Frame rate
 - `ball_speed: float = 0.015`: Ball movement speed
-- `paddle_speed: float = 0.02`: Paddle movement speed
-- `paddle_width: float = 0.15`: Paddle width
-- `num_brick_rows: int = 4`: Number of brick rows
+- `paddle_speed: float = 0.02`: Paddle AI movement speed
+- `paddle_width: float = 0.25`: Paddle width in game coordinates
+- `lights_per_brick: int = 5`: Number of lights per brick
+- `rotation_speed: float = 0.003`: Rotation speed around tree
 
 **Game Elements:**
-- **Paddle** (white): Horizontal bar at bottom, auto-follows ball
+- **Paddle** (white): Horizontal bar at bottom, AI-controlled to follow ball
 - **Ball** (yellow): Bounces around, breaks bricks on contact
-- **Bricks** (colored rows): Red, orange, yellow, green bars that disappear when hit
-- **Win animation**: Flash all lights white when all bricks cleared
+- **Bricks** (red/green): Sequential groups of 5 lights that alternate colors
+- **Win animation**: Rainbow wave effect with smooth color transitions (3 seconds)
+- **Loss animation**: White wash cascading from top to bottom (4 seconds)
+
+**Implementation Details:**
+- Bricks created from sequential light indices in upper tree portion
+- Each brick tracks: indices, active state, z_min, z_max, y_min, y_max
+- Collision uses spatial bounds rather than Z-slice detection
+- Rotation uses angle tracking and projects visible face to game plane
+- Win/loss states trigger special animations before auto-reset
 
 ## Running Animations
 
@@ -274,8 +294,9 @@ python run_animation.py
 
 # Brick Breaker with custom parameters
 python run_animation.py --args '{"ball_speed": 0.02}'        # Faster ball
-python run_animation.py --args '{"num_brick_rows": 6}'       # More bricks
-python run_animation.py --args '{"paddle_width": 0.2}'       # Wider paddle
+python run_animation.py --args '{"lights_per_brick": 8}'     # Larger bricks (fewer total)
+python run_animation.py --args '{"paddle_width": 0.3}'       # Wider paddle
+python run_animation.py --args '{"rotation_speed": 0.005}'   # Faster rotation
 ```
 
 ### Command-Line Arguments
