@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Brick Breaker - Tree Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: 'Courier New', monospace;
+        }
+        h1 {
+            color: #ff6b6b;
+            text-shadow: 0 0 10px #ff6b6b;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        #controls button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 14px;
+            background: #4ecdc4;
+            border: none;
+            color: #1a1a2e;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #controls button:hover {
+            background: #45b7aa;
+        }
+        #canvas {
+            border: 2px solid #4ecdc4;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(78, 205, 196, 0.3);
+        }
+        .info {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #888;
+        }
+        .score {
+            font-size: 24px;
+            color: #ff6b6b;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Brick Breaker on the Tree! 🎄</h1>
+    <div id="controls">
+        <button onclick="startGame()">▶️ Start Game</button>
+        <button onclick="pauseGame()">⏸️ Pause</button>
+        <button onclick="resetGame()">🔄 Reset</button>
+        <button onclick="adjustSpeed(1.5)">⚡ Faster</button>
+        <button onclick="adjustSpeed(0.7)">🐢 Slower</button>
+    </div>
+    <canvas id="canvas" width="600" height="800"></canvas>
+    <div class="score" id="score">Score: 0</div>
+    <div class="info" id="info">Press Start to play!</div>
+
+    <script>
+        let points = [];
+        let colors = [];
+        let center = [0, 0, 0];
+        let animationId = null;
+        let isPaused = true;
+        let score = 0;
+        
+        // Game state
+        const game = {
+            // Boundaries (will be set after loading points)
+            yMin: -0.4, yMax: 0.4,
+            zMin: -0.45, zMax: 0.62,
+            
+            // Paddle
+            paddleY: 0,
+            paddleZ: -0.37,
+            paddleWidth: 0.15,
+            paddleHeight: 0.04,
+            paddleSpeed: 0.025,
+            
+            // Ball
+            ballY: 0,
+            ballZ: -0.27,
+            ballVY: 0.008,
+            ballVZ: 0.012,
+            ballRadius: 0.035,
+            baseSpeed: 0.012,
+            
+            // Bricks
+            brickRows: [],
+            brickHeight: 0.05,
+            
+            init() {
+                this.paddleY = 0;
+                this.paddleZ = this.zMin + 0.08;
+                this.ballY = 0;
+                this.ballZ = this.paddleZ + 0.12;
+                this.ballVY = this.baseSpeed * 0.6;
+                this.ballVZ = this.baseSpeed;
+                
+                // Create brick rows
+                this.brickRows = [];
+                const numRows = 5;
+                for (let i = 0; i < numRows; i++) {
+                    this.brickRows.push({
+                        z: this.zMax - 0.08 - i * 0.08,
+                        active: true,
+                        color: this.getBrickColor(i)
+                    });
+                }
+                score = 0;
+            },
+            
+            getBrickColor(row) {
+                const colors = [
+                    [255, 50, 50],   // Red
+                    [255, 150, 0],   // Orange
+                    [255, 255, 0],   // Yellow
+                    [0, 255, 100],   // Green
+                    [0, 200, 255],   // Cyan
+                ];
+                return colors[row % colors.length];
+            },
+            
+            update() {
+                // Move paddle (follow ball with some lag)
+                const diff = this.ballY - this.paddleY;
+                if (Math.abs(diff) > 0.02) {
+                    this.paddleY += Math.sign(diff) * this.paddleSpeed;
+                }
+                this.paddleY = Math.max(this.yMin + this.paddleWidth/2 + 0.05, 
+                               Math.min(this.yMax - this.paddleWidth/2 - 0.05, this.paddleY));
+                
+                // Move ball
+                this.ballY += this.ballVY;
+                this.ballZ += this.ballVZ;
+                
+                // Wall collisions
+                if (this.ballY <= this.yMin + 0.05 || this.ballY >= this.yMax - 0.05) {
+                    this.ballVY = -this.ballVY;
+                    this.ballY = Math.max(this.yMin + 0.05, Math.min(this.yMax - 0.05, this.ballY));
+                }
+                
+                if (this.ballZ >= this.zMax - 0.05) {
+                    this.ballVZ = -this.ballVZ;
+                    this.ballZ = this.zMax - 0.05;
+                }
+                
+                // Paddle collision
+                if (this.ballZ <= this.paddleZ + this.paddleHeight &&
+                    this.ballZ >= this.paddleZ - this.ballRadius &&
+                    Math.abs(this.ballY - this.paddleY) < this.paddleWidth / 2) {
+                    this.ballVZ = Math.abs(this.ballVZ);
+                    // Add angle based on hit position
+                    const hitPos = (this.ballY - this.paddleY) / (this.paddleWidth / 2);
+                    this.ballVY = hitPos * this.baseSpeed * 1.2;
+                }
+                
+                // Brick collisions
+                for (let brick of this.brickRows) {
+                    if (!brick.active) continue;
+                    
+                    if (this.ballZ >= brick.z - this.brickHeight/2 &&
+                        this.ballZ <= brick.z + this.brickHeight/2) {
+                        brick.active = false;
+                        this.ballVZ = -this.ballVZ;
+                        score += 100;
+                        break;
+                    }
+                }
+                
+                // Ball falls below paddle
+                if (this.ballZ < this.zMin - 0.1) {
+                    this.resetBall();
+                }
+                
+                // Win check
+                if (this.brickRows.every(b => !b.active)) {
+                    this.init(); // Reset with new bricks
+                    score += 500; // Bonus for clearing
+                }
+            },
+            
+            resetBall() {
+                this.ballY = this.paddleY;
+                this.ballZ = this.paddleZ + 0.12;
+                this.ballVZ = Math.abs(this.ballVZ);
+            }
+        };
+        
+        // Load tree points
+        fetch('tree_points.json')
+            .then(r => r.json())
+            .then(data => {
+                points = data;
+                center = points.reduce((acc, p) => [acc[0]+p[0], acc[1]+p[1], acc[2]+p[2]], [0,0,0]);
+                center = center.map(c => c / points.length);
+                points = points.map(p => [p[0]-center[0], p[1]-center[1], p[2]-center[2]]);
+                
+                // Get boundaries
+                const ys = points.map(p => p[1]);
+                const zs = points.map(p => p[2]);
+                game.yMin = Math.min(...ys);
+                game.yMax = Math.max(...ys);
+                game.zMin = Math.min(...zs);
+                game.zMax = Math.max(...zs);
+                
+                colors = new Array(points.length).fill([5, 5, 20]);
+                game.init();
+                render();
+                document.getElementById('info').textContent = `Loaded ${points.length} lights. Press Start!`;
+            });
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        function render() {
+            // Calculate colors for each point
+            colors = points.map((p, i) => {
+                const y = p[1];
+                const z = p[2];
+                
+                // Background
+                let color = [5, 5, 20];
+                
+                // Bricks
+                for (let brick of game.brickRows) {
+                    if (!brick.active) continue;
+                    if (Math.abs(z - brick.z) < game.brickHeight / 2) {
+                        color = brick.color;
+                    }
+                }
+                
+                // Paddle
+                if (Math.abs(y - game.paddleY) < game.paddleWidth / 2 &&
+                    Math.abs(z - game.paddleZ) < game.paddleHeight / 2) {
+                    color = [255, 255, 255];
+                }
+                
+                // Ball
+                const ballDist = Math.sqrt((y - game.ballY)**2 + (z - game.ballZ)**2);
+                if (ballDist < game.ballRadius) {
+                    color = [255, 255, 0];
+                }
+                
+                return color;
+            });
+            
+            // Draw to canvas
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Project to screen (simple YZ view)
+            points.forEach((p, i) => {
+                const y = p[1];
+                const z = p[2];
+                
+                const screenX = ((y - game.yMin) / (game.yMax - game.yMin)) * (canvas.width - 40) + 20;
+                const screenY = canvas.height - ((z - game.zMin) / (game.zMax - game.zMin)) * (canvas.height - 40) - 20;
+                
+                const [r, g, b] = colors[i];
+                ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            document.getElementById('score').textContent = `Score: ${score}`;
+        }
+        
+        function gameLoop() {
+            if (!isPaused) {
+                game.update();
+            }
+            render();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+        
+        function startGame() {
+            isPaused = false;
+            if (!animationId) {
+                gameLoop();
+            }
+            document.getElementById('info').textContent = 'Game running!';
+        }
+        
+        function pauseGame() {
+            isPaused = true;
+            document.getElementById('info').textContent = 'Paused';
+        }
+        
+        function resetGame() {
+            game.init();
+            render();
+            document.getElementById('info').textContent = 'Game reset. Press Start!';
+        }
+        
+        function adjustSpeed(factor) {
+            game.baseSpeed *= factor;
+            game.ballVY *= factor;
+            game.ballVZ *= factor;
+            game.paddleSpeed *= factor;
+        }
+    </script>
+</body>
+</html>
+
