@@ -1,15 +1,18 @@
 # Brick Breaker - Holiday Lights Contest Project Summary
 
 **Project:** Brick Breaker Game for 500-LED Christmas Tree  
-**Author:** Pat Buffolino  
+**Author:** Pat / seeknay (from TikTok)  
+**Created With:** Cursor AI Assistant  
 **Date:** December 27, 2025  
-**Status:** Complete and Ready for Submission
+**Status:** Complete - For Fun (Not a Prize Entry)
 
 ---
 
 ## 🎮 Project Overview
 
 This project implements a fully playable **Brick Breaker game** that runs on a 3D Christmas tree with 500 programmable LEDs. The game transforms the tree into an interactive gaming display with classic arcade mechanics adapted for 3D spatial coordinates.
+
+**Created for fun using Cursor AI** - This is a learning project and creative exploration, not submitted for prizes.
 
 ### Key Features
 
@@ -317,13 +320,18 @@ python run_animation.py --args '{"fps": 60}'
 ## 📝 Submission Details
 
 ### For Holiday Lights Contest
-- **Submission Method:** GitHub Repository
+**Note:** This project was created for fun and learning, not as a prize entry. Feel free to enjoy and learn from the code!
+
+- **Created By:** Pat / seeknay (TikTok)
+- **Built With:** Cursor AI Assistant
 - **Animation Class:** `BrickBreaker` in `animation.py`
 - **Default Config:** Works out-of-box with `python run_animation.py`
 - **Special Requirements:** None - all defaults are optimized
 - **Recommended View:** Run full 3D visualization for best experience
 
 ### Files to Submit
+**Note:** Shared for educational purposes and fun, not for competition.
+
 - `animation.py` (main game)
 - `requirements.txt` (dependencies)
 - Screen recording of gameplay (recommended)
@@ -332,6 +340,8 @@ python run_animation.py --args '{"fps": 60}'
 
 ## 🙏 Acknowledgments
 
+- **Created By:** Pat / seeknay (from TikTok) with Cursor AI
+- **Purpose:** Learning project and creative exploration (for fun!)
 - **Framework:** Tarabyte Holiday Lights Contest infrastructure
 - **Dependencies:** numpy, matplotlib, typeguard
 - **Inspiration:** Classic arcade Brick Breaker / Breakout games
@@ -341,11 +351,12 @@ python run_animation.py --args '{"fps": 60}'
 
 ## 📞 Contact & Links
 
+**Author:** Pat / seeknay  
 **GitHub:** https://github.com/pbuffolino/holiday-lights-contest  
 **Contest:** Tarabyte Holiday Lights Contest 2025  
-**Deadline:** January 11, 2026 at 11:59 pm
+**Note:** Created for fun with Cursor AI - not a prize entry
 
 ---
 
-*Built with ❤️ and 500 LEDs*
+*Built with ❤️, 500 LEDs, and AI assistance*
 

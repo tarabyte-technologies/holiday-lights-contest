@@ -3,6 +3,11 @@ Brick Breaker Game on the Christmas Tree!
 - Platform at the bottom moves left/right
 - Ball bounces and breaks bricks
 - Bricks are sequential groups of lights that alternate colors
+
+Author: Pat / seeknay (from TikTok)
+Created with: Cursor AI Assistant
+Purpose: For fun and learning (not a prize entry)
+Date: December 27, 2025
 """
 from lib.base_animation import BaseAnimation
 from typing import Optional
