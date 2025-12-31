@@ -4,6 +4,10 @@ Replace this with your own animation class, or use --sample to run a sample anim
 """
 from lib.base_animation import BaseAnimation
 from typing import Optional
+from animations.meteor import Meteor
+
+Animation = Meteor
+
 import numpy as np
 
 # Write your animation here!
