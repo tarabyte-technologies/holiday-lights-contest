@@ -20,7 +20,19 @@ class MatplotlibController(BaseController):
     if show_tree:
       self._add_christmas_tree()
 
-    self.scatter = self.ax.scatter(self.points[:, 0], self.points[:, 1], self.points[:, 2], c=self.frameBuf / 255, s=self.sizes, marker='o', edgecolors=None, alpha=0.4, zorder=2, depthshade=False)
+    # Normalize colors robustly (some animations use 0-255 ints, others use 0-1 floats)
+    def _norm_colors(buf):
+      arr = np.asarray(buf, dtype=float)
+      if arr.size == 0:
+        return arr
+      # If values appear to be in 0-255 range, scale down
+      if arr.max() > 1.01:
+        arr = arr / 255.0
+      # Ensure values are within [0, 1]
+      arr = np.clip(arr, 0.0, 1.0)
+      return arr
+
+    self.scatter = self.ax.scatter(self.points[:, 0], self.points[:, 1], self.points[:, 2], c=_norm_colors(self.frameBuf), s=self.sizes, marker='o', edgecolors=None, alpha=0.4, zorder=2, depthshade=False)
     self.ax.set_aspect('equal')
 
   def _add_christmas_tree(self):
@@ -173,5 +185,10 @@ class MatplotlibController(BaseController):
 
   def update(self, frame):
     self.animation.renderNextFrame()
-    self.scatter.set_color(self.frameBuf / 255)
+    # Normalize and clip colors before passing to matplotlib
+    arr = np.asarray(self.frameBuf, dtype=float)
+    if arr.size > 0 and arr.max() > 1.01:
+      arr = arr / 255.0
+    arr = np.clip(arr, 0.0, 1.0)
+    self.scatter.set_color(arr)
 
