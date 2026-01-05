@@ -30,3 +30,5 @@ Thumbs.db
 # (uncomment the line below if you want to ignore it)
 # utils/points/3dpoints.npy
 
+
+args.json
