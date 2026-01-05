@@ -1,12 +1,19 @@
 # animation.py
+<<<<<<< Updated upstream
 from __future__ import annotations
 
 import time
 from typing import Optional, Tuple
+=======
+
+from dataclasses import dataclass
+from typing import Optional, Dict, List, Tuple
+>>>>>>> Stashed changes
 
 import numpy as np
 
 from lib.base_animation import BaseAnimation
+<<<<<<< Updated upstream
 from utils.geometry import POINTS_3D
 
 
@@ -76,10 +83,60 @@ class Animation(BaseAnimation):
     - The runner has no audio input. "Sync" means: start the song and start this together.
     - Stage timing is now BPM-based from t=0, so it will not feel slow.
     - tempo_start_seconds only offsets beat accents, not stage motion.
+=======
+from lib.constants import NUM_PIXELS
+from utils.geometry import POINTS_3D
+
+
+def _wrap_angle(d: np.ndarray) -> np.ndarray:
+    """Wrap angular difference into [-pi, pi]."""
+    return (d + np.pi) % (2.0 * np.pi) - np.pi
+
+
+def _mix(a: np.ndarray, b: np.ndarray, t: float) -> np.ndarray:
+    return a * (1.0 - t) + b * t
+
+
+def _as_rgb(color: Tuple[int, int, int]) -> np.ndarray:
+    return np.array(color, dtype=np.float32)
+
+
+def _gamma_boost(rgb: np.ndarray, gamma: float) -> np.ndarray:
+    """
+    Simple gamma-like boost for perceived brightness.
+    gamma < 1 brightens; gamma > 1 darkens.
+    Works on 0..255 float RGB.
+    """
+    g = float(max(0.05, gamma))
+    x = np.clip(rgb / 255.0, 0.0, 1.0)
+    x = np.power(x, g)
+    return x * 255.0
+
+
+@dataclass
+class _Particle:
+    y: float
+    theta: float
+    r_target: float      # 0..1 (where in the tree depth the flake lives)
+    speed: float
+    color_idx: int
+    sparkle: bool
+
+
+class ConfettiSnowfallColorZones(BaseAnimation):
+    """
+    Confetti Snowfall with Color Zones (real-tree friendly, high-visibility)
+
+    - Bright confetti flakes drift downward.
+    - Tree divided into soft horizontal color zones.
+    - Rare gold sparkles.
+    - Finale: full-tree multicolor blink celebration.
+>>>>>>> Stashed changes
     """
 
     def __init__(
         self,
+<<<<<<< Updated upstream
         frameBuf: np.ndarray,
         *,
         fps: Optional[int] = 30,
@@ -420,3 +477,379 @@ class Animation(BaseAnimation):
 
         col *= float(self.brightness) * float(accent_mix)
         self.frameBuf[:] = np.clip(col, 0, 255)
+=======
+        frameBuf,
+        *,
+        fps: Optional[int] = 30,
+
+        # Confetti density / look
+        particles: int = 210,
+
+        # Footprint (smaller = brighter flakes; larger = softer wash)
+        y_band: float = 0.030,
+        theta_band: float = 0.22,
+        r_band: float = 0.26,   # widened a bit to help fill depth
+
+        # Motion
+        speed_min: float = 0.24,
+        speed_max: float = 0.62,
+        drift: float = 0.20,
+
+        # Zone behavior
+        soft_zone_edges: float = 0.05,
+
+        # Sparkles
+        sparkle_chance: float = 0.12,
+        sparkle_boost: float = 1.75,
+
+        # Global brightness / pop
+        brightness: float = 1.80,
+        gamma: float = 0.70,             # <1 = brighter/more vivid
+        flake_peak: float = 1.60,        # boosts the core intensity of flakes
+        ambient_zone_glow: float = 0.07, # subtle colored “atmosphere” per zone
+
+        # Depth behavior (THIS FIXES THE HOLE)
+        r_min: float = 0.22,             # allow flakes closer to trunk
+        r_max: float = 0.98,             # and near outer surface
+        r_outer_bias: float = 0.60,      # 0..1 higher = more flakes outward
+
+        # Finale
+        loop_seconds: float = 34.0,
+        finale_seconds: float = 6.0,
+        finale_blink_hz: float = 10.0,
+        finale_brightness: float = 1.45,
+
+        seed: int = 20251225,
+    ):
+        super().__init__(frameBuf, fps=fps)
+
+        self.rng = np.random.default_rng(int(seed))
+        self.t = 0.0
+
+        self.particles_n = int(max(20, particles))
+        self.y_band = float(max(0.006, y_band))
+        self.theta_band = float(max(0.04, theta_band))
+        self.r_band = float(max(0.02, r_band))
+
+        self.speed_min = float(max(0.01, speed_min))
+        self.speed_max = float(max(self.speed_min, speed_max))
+        self.drift = float(drift)
+
+        self.soft_zone_edges = float(max(0.0, soft_zone_edges))
+
+        self.sparkle_chance = float(np.clip(sparkle_chance, 0.0, 0.7))
+        self.sparkle_boost = float(max(1.0, sparkle_boost))
+
+        self.brightness = float(max(0.1, brightness))
+        self.gamma = float(max(0.05, gamma))
+        self.flake_peak = float(max(1.0, flake_peak))
+        self.ambient_zone_glow = float(max(0.0, ambient_zone_glow))
+
+        self.r_min = float(np.clip(r_min, 0.0, 1.0))
+        self.r_max = float(np.clip(r_max, 0.0, 1.0))
+        if self.r_max <= self.r_min + 1e-6:
+            self.r_max = min(1.0, self.r_min + 0.10)
+        self.r_outer_bias = float(np.clip(r_outer_bias, 0.0, 1.0))
+
+        self.loop_seconds = float(max(6.0, loop_seconds))
+        self.finale_seconds = float(np.clip(finale_seconds, 1.0, self.loop_seconds - 1.0))
+        self.finale_blink_hz = float(max(0.5, finale_blink_hz))
+        self.finale_brightness = float(max(0.2, finale_brightness))
+
+        # Geometry -> centered cylindrical
+        pts = np.asarray(POINTS_3D, dtype=np.float32)
+        if pts.shape[0] != NUM_PIXELS:
+            pts = pts[:NUM_PIXELS]
+
+        min_pt = pts.min(axis=0)
+        max_pt = pts.max(axis=0)
+        mid = (min_pt + max_pt) / 2.0
+        cpts = pts - mid
+
+        x = cpts[:, 0]
+        y = cpts[:, 1]
+        z = cpts[:, 2]
+
+        self.theta = np.arctan2(z, x)
+        r = np.sqrt(x * x + z * z)
+        rmax = float(r.max()) if float(r.max()) > 1e-6 else 1.0
+        self.rn = r / rmax
+
+        ymin, ymax = float(y.min()), float(y.max())
+        denom = (ymax - ymin) if (ymax - ymin) > 1e-6 else 1.0
+        self.yn = (y - ymin) / denom  # 0..1 bottom->top
+
+        # Stable per-pixel values for finale shimmer
+        self.pixel_phase = self.rng.random(NUM_PIXELS).astype(np.float32)
+        self.pixel_choice = self.rng.integers(0, 10_000_000, size=NUM_PIXELS, dtype=np.int32)
+
+        # Higher-saturation palettes (camera friendly)
+        self.zones = [
+            # Top: Cool Sparkle
+            (0.78, 1.01, [
+                (255, 255, 255),
+                ( 80, 220, 255),
+                ( 90, 140, 255),
+                (160, 120, 255),
+            ]),
+            # Upper-mid: Classic holiday
+            (0.52, 0.78, [
+                (255, 255, 255),
+                (255,  25,  25),
+                ( 35, 255, 120),
+                (255, 120,  40),
+            ]),
+            # Lower-mid: Warm celebration
+            (0.26, 0.52, [
+                (255,  50,  60),
+                (255,  40, 210),
+                (190, 255,  60),
+                ( 60, 255, 220),
+            ]),
+            # Bottom: Grounded glow
+            (-0.01, 0.26, [
+                (255, 255, 255),
+                ( 40, 255, 120),
+                (255, 190,  40),
+                (255, 120,  20),
+            ]),
+        ]
+
+        self.zone_edges = np.array([0.26, 0.52, 0.78], dtype=np.float32)
+
+        self.particles: List[_Particle] = []
+        for _ in range(self.particles_n):
+            self.particles.append(self._spawn_particle(at_top=True))
+
+    @classmethod
+    def get_default_parameters(cls) -> Dict:
+        return {
+            "fps": 30,
+            "particles": 210,
+            "y_band": 0.030,
+            "theta_band": 0.22,
+            "r_band": 0.26,
+            "speed_min": 0.24,
+            "speed_max": 0.62,
+            "drift": 0.20,
+            "soft_zone_edges": 0.05,
+            "sparkle_chance": 0.12,
+            "sparkle_boost": 1.75,
+            "brightness": 1.80,
+            "gamma": 0.70,
+            "flake_peak": 1.60,
+            "ambient_zone_glow": 0.07,
+            "r_min": 0.22,
+            "r_max": 0.98,
+            "r_outer_bias": 0.60,
+            "loop_seconds": 34.0,
+            "finale_seconds": 6.0,
+            "finale_blink_hz": 10.0,
+            "finale_brightness": 1.45,
+            "seed": 20251225,
+        }
+
+    @classmethod
+    def validate_parameters(cls, parameters):
+        super().validate_parameters(parameters)
+        p = {**cls.get_default_parameters(), **parameters}
+
+        if not isinstance(p["particles"], int):
+            raise TypeError("particles must be an int")
+
+        numeric_fields = [
+            "y_band", "theta_band", "r_band",
+            "speed_min", "speed_max", "drift",
+            "soft_zone_edges",
+            "sparkle_chance", "sparkle_boost",
+            "brightness", "gamma", "flake_peak", "ambient_zone_glow",
+            "r_min", "r_max", "r_outer_bias",
+            "loop_seconds", "finale_seconds", "finale_blink_hz", "finale_brightness",
+        ]
+        for k in numeric_fields:
+            if not isinstance(p[k], (int, float)):
+                raise TypeError(f"{k} must be a number")
+
+        if p["particles"] < 20 or p["particles"] > 800:
+            raise ValueError("particles should be between 20 and 800")
+
+        if p["speed_min"] <= 0 or p["speed_max"] <= 0 or p["speed_max"] < p["speed_min"]:
+            raise ValueError("speed_min/speed_max must be positive and speed_max >= speed_min")
+
+        if p["loop_seconds"] < 6:
+            raise ValueError("loop_seconds must be >= 6")
+        if not (1.0 <= p["finale_seconds"] < p["loop_seconds"]):
+            raise ValueError("finale_seconds must be >= 1 and < loop_seconds")
+
+        if not (0.0 <= p["sparkle_chance"] <= 0.7):
+            raise ValueError("sparkle_chance must be between 0 and 0.7")
+        if p["sparkle_boost"] < 1.0:
+            raise ValueError("sparkle_boost must be >= 1.0")
+
+        if p["gamma"] <= 0:
+            raise ValueError("gamma must be > 0")
+        if p["flake_peak"] < 1.0:
+            raise ValueError("flake_peak must be >= 1.0")
+        if p["brightness"] <= 0:
+            raise ValueError("brightness must be > 0")
+
+        if not (0.0 <= p["r_min"] <= 1.0 and 0.0 <= p["r_max"] <= 1.0):
+            raise ValueError("r_min and r_max must be in [0, 1]")
+        if p["r_max"] <= p["r_min"]:
+            raise ValueError("r_max must be > r_min")
+        if not (0.0 <= p["r_outer_bias"] <= 1.0):
+            raise ValueError("r_outer_bias must be in [0, 1]")
+
+    def _biased_radius(self) -> float:
+        """
+        Choose a radius target for a particle.
+        r_outer_bias > 0.5 biases toward outer radii (more visible),
+        but still allows inner flakes to fill the core (fixes the hole).
+        """
+        u = float(self.rng.random())
+        # Blend between linear (u) and outer-biased (sqrt) based on r_outer_bias
+        outer = np.sqrt(u)             # biases toward 1.0
+        inner = u                      # uniform
+        b = self.r_outer_bias
+        v = (1.0 - b) * inner + b * outer
+        return float(self.r_min + (self.r_max - self.r_min) * v)
+
+    def _spawn_particle(self, *, at_top: bool) -> _Particle:
+        y = 1.0 + float(self.rng.random() * 0.12) if at_top else float(self.rng.random())
+        theta = float(self.rng.uniform(-np.pi, np.pi))
+        r_target = self._biased_radius()
+        speed = float(self.rng.uniform(self.speed_min, self.speed_max))
+
+        color_idx = int(self.rng.integers(0, 10))
+        sparkle = bool(self.rng.random() < self.sparkle_chance)
+
+        return _Particle(y=y, theta=theta, r_target=r_target, speed=speed, color_idx=color_idx, sparkle=sparkle)
+
+    def _zone_color(self, y: float, idx: int) -> np.ndarray:
+        for low, high, palette in self.zones:
+            if low <= y < high:
+                return _as_rgb(palette[idx % len(palette)])
+        return _as_rgb((255, 255, 255))
+
+    def _zone_blend_color(self, y: float, idx: int) -> np.ndarray:
+        base = self._zone_color(y, idx)
+        w = self.soft_zone_edges
+        if w <= 1e-6:
+            return base
+
+        for edge in self.zone_edges:
+            d = y - float(edge)
+            if abs(d) < w:
+                t = abs(d) / w
+                mix_amt = 0.40 * (1.0 - t)
+
+                if d > 0:
+                    other = self._zone_color(y - 0.12, idx + 1)
+                else:
+                    other = self._zone_color(y + 0.12, idx + 1)
+
+                return _mix(base, other, mix_amt)
+
+        return base
+
+    def _render_finale(self, local_t: float):
+        palette = np.array(
+            [
+                (255,  30,  30),
+                ( 30, 255, 120),
+                ( 90, 140, 255),
+                (255,  40, 210),
+                ( 80, 220, 255),
+                (255, 190,  40),
+                (255, 255, 255),
+                (190, 255,  60),
+            ],
+            dtype=np.float32,
+        )
+
+        blink = 0.5 + 0.5 * np.sin(2.0 * np.pi * self.finale_blink_hz * local_t)
+        blink_gate = (blink > 0.10).astype(np.float32)
+
+        tw = (self.pixel_phase + local_t * 1.10) % 1.0
+        twinkle = (tw > 0.35).astype(np.float32)
+
+        idx = (self.pixel_choice + int(local_t * 23.0)) % len(palette)
+        colors = palette[idx]
+
+        weight = 0.85 + 0.55 * (1.0 - self.yn)
+        out = colors * (blink_gate * twinkle)[:, None] * weight[:, None] * self.finale_brightness
+        out = _gamma_boost(out, self.gamma)
+
+        self.frameBuf[:] = np.clip(out, 0.0, 255.0).astype(np.uint8)
+
+    def renderNextFrame(self):
+        dt = 1.0 / float(self.fps) if self.fps else 1.0 / 30.0
+        self.t += dt
+
+        loop_t = self.t % self.loop_seconds
+        finale_start = self.loop_seconds - self.finale_seconds
+
+        self.frameBuf[:] = 0
+
+        if loop_t >= finale_start:
+            self._render_finale(loop_t - finale_start)
+            return
+
+        accum = np.zeros((NUM_PIXELS, 3), dtype=np.float32)
+        base_weight = 0.95 + 0.55 * (1.0 - self.yn)
+
+        # Ambient zone glow (helps zones read even between flakes)
+        if self.ambient_zone_glow > 1e-6:
+            zone_glow = np.zeros((NUM_PIXELS, 3), dtype=np.float32)
+            for i in range(NUM_PIXELS):
+                zone_glow[i] = self._zone_color(float(self.yn[i]), int(self.pixel_choice[i] % 11))
+            zone_glow *= (self.ambient_zone_glow * base_weight)[:, None]
+            accum += zone_glow
+
+        for p in self.particles:
+            p.y -= p.speed * dt
+
+            p.theta += self.drift * (0.35 + 0.65 * p.speed) * dt * float(
+                np.sin((p.y * 6.0 + self.t * 0.85) * 2.0 * np.pi)
+            )
+            p.theta = float(_wrap_angle(np.array([p.theta], dtype=np.float32))[0])
+
+            if p.y < -0.14:
+                newp = self._spawn_particle(at_top=True)
+                p.y, p.theta, p.r_target, p.speed, p.color_idx, p.sparkle = (
+                    newp.y, newp.theta, newp.r_target, newp.speed, newp.color_idx, newp.sparkle
+                )
+
+            dy = np.abs(self.yn - p.y)
+            dth = np.abs(_wrap_angle(self.theta - p.theta))
+            dr = np.abs(self.rn - p.r_target)
+
+            mask = (dy < self.y_band) & (dth < self.theta_band) & (dr < self.r_band)
+            if not np.any(mask):
+                continue
+
+            fy = 1.0 - (dy[mask] / self.y_band)
+            fth = 1.0 - (dth[mask] / self.theta_band)
+            fr = 1.0 - (dr[mask] / self.r_band)
+
+            core = (fy * fth * fr)
+            strength = np.power(core, 0.75) * self.flake_peak
+
+            yy = float(np.clip(p.y, 0.0, 1.0))
+            c = self._zone_blend_color(yy, p.color_idx)
+
+            if p.sparkle:
+                sparkle_wave = 0.60 + 0.40 * np.sin(2.0 * np.pi * (6.5 * self.t + (p.theta + np.pi) * 0.25))
+                c = c * (1.0 + (self.sparkle_boost - 1.0) * float(np.clip(sparkle_wave, 0.0, 1.0)))
+
+            w = base_weight[mask]
+            accum[mask] += (c[None, :] * strength[:, None] * w[:, None])
+
+        accum *= self.brightness
+        accum = _gamma_boost(accum, self.gamma)
+        self.frameBuf[:] = np.clip(accum, 0.0, 255.0).astype(np.uint8)
+
+
+class Animation(ConfettiSnowfallColorZones):
+    pass
+>>>>>>> Stashed changes
